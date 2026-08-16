@@ -33,6 +33,7 @@ import PageHeader from "../../components/common/PageHeader";
 import Loader from "../../components/common/Loader";
 import { deleteTournament, getTournaments, updateTournament } from "../../services/tournamentService";
 import { TOURNAMENT_STATUSES } from "../../utils/constants";
+import { useRole } from "../../hooks/useAuth";
 
 function formatDate(value) {
   if (!value) return "—";
@@ -43,6 +44,7 @@ function formatDate(value) {
 function TournamentList() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isSuperAdmin } = useRole();
   const [tournaments, setTournaments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

@@ -15,44 +15,122 @@ const certificatesCollection = collection(db, "certificates");
 
 function normalizeDate(value) {
   if (!value) return null;
-  return value.toDate ? value.toDate() : new Date(value);
+  if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
+  if (typeof value.toDate === "function") {
+    try {
+      const d = value.toDate();
+      return isNaN(d.getTime()) ? null : d;
+    } catch (e) {
+      // fallback
+    }
+  }
+  if (typeof value.seconds === "number") {
+    const d = new Date(value.seconds * 1000);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 function normalizeCertificate(snapshot) {
-  const data = snapshot.data();
+  const data = snapshot.data() || {};
   return {
     id: snapshot.id,
     ...data,
-    issueDate: normalizeDate(data.issueDate),
+    certificateId: data.certificateId || snapshot.id,
+    userId: data.userId || data.participantUserId || "",
+    participantUserId: data.participantUserId || data.userId || "",
+    participantName: data.participantName || "Participant",
+    participantEmail: data.participantEmail || "",
+    tournamentId: data.tournamentId || "",
+    tournamentName: data.tournamentName || "Tournament",
+    sport: data.sport || data.sportName || "General Sport",
+    sportName: data.sportName || data.sport || "General Sport",
+    achievement: data.achievement || "Participant",
+    tournamentDate: normalizeDate(data.tournamentDate || data.issueDate),
+    issuedAt: normalizeDate(data.issuedAt || data.issueDate || data.createdAt),
+    issueDate: normalizeDate(data.issueDate || data.issuedAt || data.createdAt),
+    issuedBy: data.issuedBy || "SportSphere Administrator",
     createdAt: normalizeDate(data.createdAt),
   };
 }
 
-// Generate guaranteed unique certificate ID e.g. SP-2026-X892A
+// Generate unique certificate ID e.g. SP-2026-X892A
 export function generateUniqueCertId() {
   const randomStr = Math.random().toString(36).substring(2, 7).toUpperCase();
   const year = new Date().getFullYear();
   return `SP-${year}-${randomStr}`;
 }
 
-export async function createCertificate(data) {
+// Check if a certificate already exists for a participant in a specific tournament to avoid duplicates
+export async function checkExistingCertificate(tournamentId, userId = "", participantEmail = "", participantName = "") {
+  if (!tournamentId) return null;
+
+  try {
+    const snapshot = await getDocs(certificatesCollection);
+    if (snapshot.empty) return null;
+
+    const allCerts = snapshot.docs.map(normalizeCertificate);
+    const cleanEmail = participantEmail ? participantEmail.trim().toLowerCase() : "";
+    const cleanName = participantName ? participantName.trim().toLowerCase() : "";
+
+    const found = allCerts.find((cert) => {
+      if (cert.tournamentId !== tournamentId) return false;
+      if (userId && (cert.userId === userId || cert.participantUserId === userId)) return true;
+      if (cleanEmail && cert.participantEmail?.toLowerCase() === cleanEmail) return true;
+      if (cleanName && cert.participantName?.toLowerCase() === cleanName) return true;
+      return false;
+    });
+
+    return found || null;
+  } catch (err) {
+    console.error("checkExistingCertificate error:", err);
+    return null;
+  }
+}
+
+export async function createCertificate(data, allowDuplicate = false) {
   const certId = (data.certificateId || generateUniqueCertId()).toUpperCase().trim();
   const docRef = doc(db, "certificates", certId);
   const existingSnap = await getDoc(docRef);
 
   if (existingSnap.exists()) {
-    throw new Error(`Certificate ID "${certId}" already exists. Please try again.`);
+    throw new Error(`Certificate ID "${certId}" already exists. Please regenerate ID.`);
   }
+
+  // Duplicate check unless explicitly acknowledged
+  if (!allowDuplicate && data.tournamentId) {
+    const existingCert = await checkExistingCertificate(
+      data.tournamentId,
+      data.userId || data.participantUserId,
+      data.participantEmail,
+      data.participantName
+    );
+
+    if (existingCert) {
+      const err = new Error(
+        `A certificate (${existingCert.certificateId}) has already been issued to ${existingCert.participantName} for this tournament.`
+      );
+      err.existingCert = existingCert;
+      throw err;
+    }
+  }
+
+  const userId = data.userId || data.participantUserId || "";
 
   const certificatePayload = {
     certificateId: certId,
+    userId: userId,
+    participantUserId: userId,
     participantName: data.participantName.trim(),
-    participantUserId: data.participantUserId || "",
     participantEmail: data.participantEmail ? data.participantEmail.trim().toLowerCase() : "",
     tournamentId: data.tournamentId || "",
     tournamentName: data.tournamentName.trim(),
-    sportName: data.sportName.trim(),
-    achievement: data.achievement.trim(), // e.g. "1st Place (Winner)", "Participant"
+    sport: data.sport || data.sportName || "General Sport",
+    sportName: data.sportName || data.sport || "General Sport",
+    achievement: data.achievement.trim(), // Winner, Runner-up, 3rd Place, Participant
+    tournamentDate: data.tournamentDate ? new Date(data.tournamentDate) : (data.issueDate ? new Date(data.issueDate) : new Date()),
+    issuedAt: data.issuedAt ? new Date(data.issuedAt) : (data.issueDate ? new Date(data.issueDate) : new Date()),
     issueDate: data.issueDate ? new Date(data.issueDate) : new Date(),
     issuedBy: data.issuedBy || "SportSphere Administrator",
     createdAt: serverTimestamp(),
@@ -84,12 +162,6 @@ export async function getCertificateById(certId) {
 
 export async function getCertificates() {
   try {
-    const q = query(certificatesCollection, orderBy("createdAt", "desc"));
-    const snapshot = await getDocs(q);
-    if (snapshot.empty) return [];
-    return snapshot.docs.map(normalizeCertificate);
-  } catch (err) {
-    console.warn("getCertificates orderBy error, falling back to unsorted fetch:", err);
     const snapshot = await getDocs(certificatesCollection);
     if (snapshot.empty) return [];
     const certs = snapshot.docs.map(normalizeCertificate);
@@ -98,6 +170,9 @@ export async function getCertificates() {
       const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return tB - tA;
     });
+  } catch (err) {
+    console.error("getCertificates error:", err);
+    return [];
   }
 }
 
@@ -111,8 +186,8 @@ export async function getUserCertificates(userId, email = "", name = "") {
     const cleanName = name ? name.trim().toLowerCase() : "";
 
     return allCerts.filter((cert) => {
-      if (userId && cert.participantUserId === userId) return true;
-      if (cleanEmail && cert.participantEmail === cleanEmail) return true;
+      if (userId && (cert.userId === userId || cert.participantUserId === userId)) return true;
+      if (cleanEmail && cert.participantEmail?.toLowerCase() === cleanEmail) return true;
       if (cleanName && cert.participantName?.toLowerCase() === cleanName) return true;
       return false;
     });

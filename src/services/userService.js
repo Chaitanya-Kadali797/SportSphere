@@ -10,9 +10,12 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
+import { initializeApp, getApps } from "firebase/app";
+import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 
 import { db } from "../firebase/firebase";
 import { getTournament } from "./tournamentService";
+import { ROLES } from "../utils/constants";
 
 export async function getUserProfile(uid) {
   try {
@@ -37,17 +40,26 @@ export async function getUserProfile(uid) {
 export async function createOrUpdateUserProfile(uid, profile) {
   try {
     const userRef = doc(db, "users", uid);
-    await setDoc(
-      userRef,
-      {
-        email: profile.email,
-        displayName: profile.displayName || "",
-        role: profile.role || "player",
-        updatedAt: serverTimestamp(),
-        createdAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
+    const updateData = {
+      email: profile.email,
+      displayName: profile.displayName || "",
+      role: profile.role || "player",
+      active: profile.active !== undefined ? profile.active : true,
+      updatedAt: serverTimestamp(),
+    };
+
+    if (profile.phone !== undefined) {
+      updateData.phone = profile.phone;
+    }
+    if (profile.emailVerified !== undefined) {
+      updateData.emailVerified = profile.emailVerified;
+    }
+
+    if (!profile.createdAt) {
+      updateData.createdAt = serverTimestamp();
+    }
+
+    await setDoc(userRef, updateData, { merge: true });
   } catch (err) {
     console.error(`[userService] createOrUpdateUserProfile error for ${uid}:`, err);
     throw err;
@@ -67,6 +79,117 @@ export async function updateUserProfile(uid, updates) {
   }
 }
 
+// ==========================================
+// ADMIN ACCOUNT MANAGEMENT SERVICES
+// ==========================================
+
+export async function createAdminAuthAccount(email, password) {
+  let secondaryApp;
+  const appName = "SecondaryAdminCreatorApp";
+  const existingApps = getApps();
+  const foundApp = existingApps.find((a) => a.name === appName);
+
+  if (foundApp) {
+    secondaryApp = foundApp;
+  } else {
+    const primaryApp = existingApps[0];
+    secondaryApp = initializeApp(primaryApp.options, appName);
+  }
+
+  const secondaryAuth = getAuth(secondaryApp);
+  const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+  const newUid = userCredential.user.uid;
+
+  await signOut(secondaryAuth);
+  return newUid;
+}
+
+export async function getAdminAccounts() {
+  try {
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("role", "==", "admin"));
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) return [];
+
+    return snapshot.docs
+      .map((docSnap) => ({
+        uid: docSnap.id,
+        ...docSnap.data(),
+      }))
+      .filter((userDoc) => userDoc.role === "admin");
+  } catch (err) {
+    console.error("[userService] getAdminAccounts error:", err);
+    throw err;
+  }
+}
+
+export async function getActiveAdminCount() {
+  try {
+    const admins = await getAdminAccounts();
+    return admins.filter((a) => a.active !== false).length;
+  } catch (err) {
+    console.error("[userService] getActiveAdminCount error:", err);
+    return 0;
+  }
+}
+
+export async function createAdminAccount({ displayName, email, password, superAdminUid }) {
+  const activeCount = await getActiveAdminCount();
+  if (activeCount >= 3) {
+    throw new Error("Maximum of 3 Admin accounts reached.");
+  }
+
+  const existingAdmins = await getAdminAccounts();
+  const isDuplicate = existingAdmins.some(
+    (a) => a.email && a.email.toLowerCase() === email.trim().toLowerCase()
+  );
+  if (isDuplicate) {
+    throw new Error("An Admin account with this email address already exists.");
+  }
+
+  const newUid = await createAdminAuthAccount(email.trim(), password);
+
+  const userRef = doc(db, "users", newUid);
+  const newAdminProfile = {
+    uid: newUid,
+    displayName: displayName.trim(),
+    email: email.trim().toLowerCase(),
+    role: "admin",
+    active: true,
+    createdBy: superAdminUid || "superAdmin",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  await setDoc(userRef, newAdminProfile);
+  return newAdminProfile;
+}
+
+export async function toggleAdminStatus(adminUid, activeStatus) {
+  if (activeStatus === true) {
+    const activeCount = await getActiveAdminCount();
+    if (activeCount >= 3) {
+      throw new Error("Maximum of 3 Admin accounts reached.");
+    }
+  }
+
+  const userRef = doc(db, "users", adminUid);
+  await updateDoc(userRef, {
+    active: activeStatus,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteAdminAccount(adminUid) {
+  const userRef = doc(db, "users", adminUid);
+  await deleteDoc(userRef);
+}
+
+// ==========================================
+// TOURNAMENT REGISTRATIONS SERVICES
+// ==========================================
+
 const tournamentRegistrationsCollection = collection(
   db,
   "tournamentRegistrations"
@@ -74,7 +197,6 @@ const tournamentRegistrationsCollection = collection(
 
 export async function registerForTournament(userId, tournamentId) {
   try {
-    console.log(`[userService] registerForTournament: userId=${userId}, tournamentId=${tournamentId}`);
     const registrationId = `${userId}_${tournamentId}`;
     const registrationRef = doc(
       db,
@@ -88,16 +210,14 @@ export async function registerForTournament(userId, tournamentId) {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    console.log(`[userService] Successfully registered ${userId} for ${tournamentId}`);
   } catch (err) {
-    console.error(`[userService] registerForTournament failed for userId=${userId}, tournamentId=${tournamentId}:`, err);
+    console.error(`[userService] registerForTournament failed:`, err);
     throw err;
   }
 }
 
 export async function unregisterFromTournament(userId, tournamentId) {
   try {
-    console.log(`[userService] unregisterFromTournament: userId=${userId}, tournamentId=${tournamentId}`);
     const registrationId = `${userId}_${tournamentId}`;
     const registrationRef = doc(
       db,
@@ -106,23 +226,20 @@ export async function unregisterFromTournament(userId, tournamentId) {
     );
 
     await deleteDoc(registrationRef);
-    console.log(`[userService] Successfully unregistered ${userId} from ${tournamentId}`);
   } catch (err) {
-    console.error(`[userService] unregisterFromTournament failed for userId=${userId}, tournamentId=${tournamentId}:`, err);
+    console.error(`[userService] unregisterFromTournament failed:`, err);
     throw err;
   }
 }
 
 export async function getUserRegistrations(userId) {
   try {
-    console.log(`[userService] getUserRegistrations for userId=${userId}`);
     const registrationsQuery = query(
       tournamentRegistrationsCollection,
       where("userId", "==", userId)
     );
 
     const snapshot = await getDocs(registrationsQuery);
-    console.log(`[userService] getUserRegistrations snapshot size: ${snapshot.size}`);
 
     if (snapshot.empty) {
       return [];
@@ -133,18 +250,16 @@ export async function getUserRegistrations(userId) {
       ...registrationSnap.data(),
     }));
   } catch (err) {
-    console.error(`[userService] getUserRegistrations failed for userId=${userId}:`, err);
+    console.error(`[userService] getUserRegistrations failed:`, err);
     throw err;
   }
 }
 
 export async function getRegisteredTournaments(userId) {
   try {
-    console.log(`[userService] getRegisteredTournaments for userId=${userId}`);
     const registrations = await getUserRegistrations(userId);
 
     if (registrations.length === 0) {
-      console.log(`[userService] No registrations found for userId=${userId}`);
       return [];
     }
 
@@ -153,11 +268,9 @@ export async function getRegisteredTournaments(userId) {
     );
 
     const tournaments = await Promise.all(tournamentPromises);
-    const validTournaments = tournaments.filter((tournament) => Boolean(tournament));
-    console.log(`[userService] getRegisteredTournaments returning ${validTournaments.length} tournaments`);
-    return validTournaments;
+    return tournaments.filter((tournament) => Boolean(tournament));
   } catch (err) {
-    console.error(`[userService] getRegisteredTournaments failed for userId=${userId}:`, err);
+    console.error(`[userService] getRegisteredTournaments failed:`, err);
     throw err;
   }
 }
@@ -172,21 +285,19 @@ export async function getTournamentRegistrationCount(tournamentId) {
     const snapshot = await getDocs(registrationsQuery);
     return snapshot.size;
   } catch (err) {
-    console.error(`[userService] getTournamentRegistrationCount failed for tournamentId=${tournamentId}:`, err);
+    console.error(`[userService] getTournamentRegistrationCount failed:`, err);
     return 0;
   }
 }
 
 export async function getTournamentParticipants(tournamentId) {
   try {
-    console.log(`[userService] getTournamentParticipants for tournamentId=${tournamentId}`);
     const registrationsQuery = query(
       tournamentRegistrationsCollection,
       where("tournamentId", "==", tournamentId)
     );
 
     const snapshot = await getDocs(registrationsQuery);
-    console.log(`[userService] getTournamentParticipants count: ${snapshot.size}`);
     if (snapshot.empty) return [];
 
     const userPromises = snapshot.docs.map(async (regSnap) => {
@@ -210,7 +321,7 @@ export async function getTournamentParticipants(tournamentId) {
 
     return Promise.all(userPromises);
   } catch (err) {
-    console.error(`[userService] getTournamentParticipants failed for tournamentId=${tournamentId}:`, err);
+    console.error(`[userService] getTournamentParticipants failed:`, err);
     return [];
   }
 }

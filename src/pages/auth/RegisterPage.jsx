@@ -1,9 +1,27 @@
+import { useEffect } from "react";
 import { Box, Typography } from "@mui/material";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import RegisterForm from "../../components/auth/RegisterForm";
+import { useAuth } from "../../hooks/useAuth";
+import { ROLE_HOME_PATHS } from "../../utils/constants";
 
 function RegisterPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { isAuthenticated, loading, role } = useAuth();
+
+  const redirectPath = location.state?.from;
+
+  useEffect(() => {
+    if (!loading && isAuthenticated && role) {
+      const homePath = redirectPath || ROLE_HOME_PATHS[role];
+      navigate(homePath, { replace: true });
+    }
+  }, [loading, isAuthenticated, role, redirectPath, navigate]);
+
+  if (!loading && isAuthenticated && role) {
+    return <Navigate to={redirectPath || ROLE_HOME_PATHS[role]} replace />;
+  }
 
   return (
     <Box

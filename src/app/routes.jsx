@@ -18,7 +18,8 @@ import TournamentDetails from "../pages/player/TournamentDetails";
 import MyTournaments from "../pages/player/MyTournaments";
 import ProfilePage from "../pages/ProfilePage";
 
-// Certificate System Imports
+// Admin Management & Certificate System Imports
+import AdminManagementPage from "../pages/admin/AdminManagementPage";
 import VerifyCertificatePage from "../pages/VerifyCertificatePage";
 import AdminCertificateList from "../pages/admin/AdminCertificateList";
 import GenerateCertificatePage from "../pages/admin/GenerateCertificatePage";
@@ -52,6 +53,14 @@ export const routes = [
     element: (
       <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
         <AdminDashboard />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin/users",
+    element: (
+      <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+        <AdminManagementPage />
       </ProtectedRoute>
     ),
   },
@@ -196,4 +205,3 @@ export const routes = [
     element: <Navigate to="/" replace />,
   },
 ];
-

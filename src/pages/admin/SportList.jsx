@@ -33,10 +33,11 @@ import {
   seedSports,
   toggleSportStatus,
 } from "../../services/sportService";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth, useRole } from "../../hooks/useAuth";
 
 function SportList() {
   const navigate = useNavigate();
+  const { isSuperAdmin } = useRole();
   const [sports, setSports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
@@ -116,6 +117,11 @@ function SportList() {
   };
 
   const handleDelete = async (sport) => {
+    if (!isSuperAdmin) {
+      setError("Only Super Admin can modify this");
+      return;
+    }
+
     const confirmed = window.confirm(
       `Delete ${sport.name}? This action cannot be undone.`
     );

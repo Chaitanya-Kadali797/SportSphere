@@ -1,5 +1,6 @@
 import { useContext } from "react";
 import { AuthContext } from "../contexts/AuthContext";
+import { ROLES } from "../utils/constants";
 
 export function useAuthContext() {
   const context = useContext(AuthContext);
@@ -18,12 +19,19 @@ export function useAuth() {
 export function useRole() {
   const { role, userProfile } = useAuthContext();
 
+  const isSuperAdmin = role === ROLES.SUPER_ADMIN;
+  const isAdmin = role === ROLES.ADMIN;
+  const isAnyAdmin = isSuperAdmin || isAdmin;
+  const isCoach = role === ROLES.COACH;
+  const isPlayer = role === ROLES.PLAYER;
+
   return {
     role,
-    isAdmin: role === "admin",
-    isCoach: role === "coach",
-    isPlayer: role === "player",
+    isSuperAdmin,
+    isAdmin,
+    isAnyAdmin,
+    isCoach,
+    isPlayer,
     displayName: typeof userProfile?.displayName === "string" ? userProfile.displayName : "",
   };
-
 }

@@ -1,3 +1,4 @@
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
@@ -11,46 +12,74 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Helper function to check if the user has admin privileges
-    function isAdmin() {
+    // Helper function to fetch target user document data
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Helper function to check if user document exists
+    function userExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // Helper function to check if user is Super Admin strictly by stored role
+    function isSuperAdmin() {
+      return isSignedIn() && userExists() && getUserData().role == "superAdmin";
+    }
+
+    // Helper function to check if user is an active Admin or Super Admin
+    function isAnyAdmin() {
       return isSignedIn() && (
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin") ||
-        (request.auth.token.email != null && request.auth.token.email.matches("(?i).*admin.*"))
+        isSuperAdmin() ||
+        (userExists() && getUserData().role == "admin" && (getUserData().active == true || !("active" in getUserData())))
       );
     }
 
     // Rules for /users collection
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow create, update: if isOwner(userId) || isAdmin();
-      allow delete: if isAdmin();
+      allow create: if isOwner(userId) || isSuperAdmin();
+      // Users can update their own profile fields; Super Admin can update any field
+      allow update: if isSuperAdmin() || (
+        isOwner(userId) &&
+        request.resource.data.role == resource.data.role &&
+        (!("active" in request.resource.data) || request.resource.data.active == resource.data.active)
+      );
+      allow delete: if isSuperAdmin();
     }
 
     // Rules for /sports collection
     match /sports/{sportId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow create, update: if isAnyAdmin();
+      allow delete: if isSuperAdmin();
     }
 
     // Rules for /tournaments collection
     match /tournaments/{tournamentId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow create, update: if isAnyAdmin();
+      allow delete: if isSuperAdmin();
     }
 
     // Rules for /tournamentRegistrations collection
     match /tournamentRegistrations/{registrationId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || request.resource.data.userId == request.auth.uid);
-      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || request.resource.data.userId == request.auth.uid || isAnyAdmin());
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isSuperAdmin());
     }
 
     // Rules for /certificates collection
     match /certificates/{certificateId} {
-      allow read: if true;
-      allow create, update, delete: if isAdmin();
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.participantUserId == request.auth.uid ||
+        (request.auth.token.email != null && resource.data.participantEmail == request.auth.token.email) ||
+        isAnyAdmin()
+      );
+      allow create, update: if isAnyAdmin();
+      allow delete: if isSuperAdmin();
     }
   }
 }

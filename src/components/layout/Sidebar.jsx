@@ -22,95 +22,102 @@ import WorkspacePremiumIcon from "@mui/icons-material/WorkspacePremium";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
 import { NavLink } from "react-router-dom";
 import { useAuth, useRole } from "../../hooks/useAuth";
-import { ROLE_LABELS } from "../../utils/constants";
+import { ROLE_LABELS, ROLES } from "../../utils/constants";
 
 const DRAWER_WIDTH = 260;
 
 function SidebarContent({ onNavigate }) {
   const { userProfile } = useAuth();
-  const { role, displayName } = useRole();
+  const { role, isSuperAdmin, isAdmin, isAnyAdmin } = useRole();
 
   const getRoleColor = () => {
-    if (role === "admin") return "error";
-    if (role === "coach") return "warning";
+    if (isSuperAdmin) return "error";
+    if (isAdmin) return "error";
+    if (role === ROLES.COACH) return "warning";
     return "primary";
   };
 
-  const navItems = [
-    {
-      label: "Dashboard",
-      path:
-        role === "admin"
-          ? "/admin/dashboard"
-          : role === "coach"
-            ? "/coach/dashboard"
-            : "/player/dashboard",
-      icon: <DashboardIcon />,
-    },
-  ];
+  const getRoleLabel = () => {
+    if (isSuperAdmin) return "Super Admin";
+    if (isAdmin) return "Admin";
+    return ROLE_LABELS[role] || "User";
+  };
 
-  if (role === "player") {
-    navItems.push(
-      {
-        label: "Browse Tournaments",
-        path: "/tournaments",
-        icon: <EmojiEventsIcon />,
-      },
-      {
-        label: "My Registrations",
-        path: "/my-tournaments",
-        icon: <AssignmentTurnedInIcon />,
-      }
-    );
-  }
+  const dashboardPath = isAnyAdmin
+    ? "/admin/dashboard"
+    : role === ROLES.COACH
+    ? "/coach/dashboard"
+    : "/player/dashboard";
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: "#0f172a", color: "#f8fafc" }}>
-      <Toolbar sx={{ px: 2.5, py: 2 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          <Box
-            sx={{
-              width: 40,
-              height: 40,
-              borderRadius: 2.5,
-              background: "linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#fff",
-              boxShadow: "0 4px 12px rgba(37, 99, 235, 0.4)",
-            }}
-          >
-            <SportsScoreIcon />
-          </Box>
-          <Box>
-            <Typography variant="h6" fontWeight={800} sx={{ fontFamily: '"Outfit", sans-serif', letterSpacing: -0.5, lineHeight: 1.1 }}>
-              SportSphere
+    <Box sx={{ height: "100%", display: "flex", flexDirection: "column", bgcolor: "#0f172a", color: "#f8fafc" }}>
+      <Toolbar sx={{ px: 3, py: 2 }}>
+        <Typography variant="h6" fontWeight={800} sx={{ color: "#ffffff", letterSpacing: 0.5, display: "flex", alignItems: "center", gap: 1 }}>
+          <SportsSoccerIcon sx={{ color: "#2563eb" }} /> SportSphere
+        </Typography>
+      </Toolbar>
+      <Divider sx={{ borderColor: "rgba(255, 255, 255, 0.08)" }} />
+
+      {/* User Profile Card */}
+      <Box sx={{ p: 2.5, mx: 2, my: 2, borderRadius: 3, bgcolor: "rgba(255, 255, 255, 0.03)", border: "1px solid rgba(255, 255, 255, 0.05)" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1 }}>
+          <Avatar sx={{ bgcolor: "#2563eb", width: 40, height: 40, fontWeight: 700 }}>
+            {(userProfile?.displayName || "U")[0].toUpperCase()}
+          </Avatar>
+          <Box sx={{ overflow: "hidden" }}>
+            <Typography variant="subtitle2" fontWeight={700} noWrap sx={{ color: "#ffffff" }}>
+              {userProfile?.displayName || "User"}
             </Typography>
-            <Chip
-              label={`${ROLE_LABELS[role] || "User"} Portal`}
-              color={getRoleColor()}
-              size="small"
-              sx={{ height: 20, fontSize: "0.68rem", fontWeight: 700, mt: 0.5 }}
-            />
+            <Typography variant="caption" noWrap sx={{ color: "#94a3b8", display: "block" }}>
+              {userProfile?.email || ""}
+            </Typography>
           </Box>
         </Box>
-      </Toolbar>
+        <Chip
+          label={getRoleLabel()}
+          color={getRoleColor()}
+          size="small"
+          sx={{ fontWeight: 700, fontSize: "0.7rem", height: 22 }}
+        />
+      </Box>
 
-      <Divider sx={{ borderColor: "rgba(255, 255, 255, 0.08)", mb: 2 }} />
+      {/* Nav Menu */}
+      <List sx={{ px: 2, flexGrow: 1 }}>
+        <ListItemButton
+          component={NavLink}
+          to={dashboardPath}
+          onClick={onNavigate}
+          sx={{
+            borderRadius: 2.5,
+            mb: 0.8,
+            px: 2,
+            py: 1.2,
+            color: "#94a3b8",
+            transition: "all 0.2s ease",
+            "&:hover": {
+              bgcolor: "rgba(255, 255, 255, 0.05)",
+              color: "#ffffff",
+            },
+            "&.active": {
+              background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+              color: "#ffffff",
+              boxShadow: "0 4px 12px rgba(37, 99, 235, 0.3)",
+              "& .MuiListItemIcon-root": { color: "#ffffff" },
+            },
+          }}
+        >
+          <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
+            <DashboardIcon />
+          </ListItemIcon>
+          <ListItemText primary="Dashboard" primaryTypographyProps={{ fontWeight: 600, fontSize: "0.92rem" }} />
+        </ListItemButton>
 
-      <Box sx={{ flexGrow: 1, px: 2 }}>
-        <Typography variant="caption" sx={{ color: "#64748b", textTransform: "uppercase", fontWeight: 700, px: 1.5, letterSpacing: 0.8 }}>
-          Navigation
-        </Typography>
-        <List sx={{ pt: 1 }}>
-
-
-          {navItems.map((item) => (
+        {/* Player Navigation */}
+        {role === ROLES.PLAYER && (
+          <>
             <ListItemButton
-              key={item.path}
               component={NavLink}
-              to={item.path}
+              to="/tournaments"
               onClick={onNavigate}
               sx={{
                 borderRadius: 2.5,
@@ -118,25 +125,36 @@ function SidebarContent({ onNavigate }) {
                 px: 2,
                 py: 1.2,
                 color: "#94a3b8",
-                transition: "all 0.2s ease",
-                "&:hover": {
-                  bgcolor: "rgba(255, 255, 255, 0.05)",
-                  color: "#ffffff",
-                },
-                "&.active": {
-                  background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-                  color: "#ffffff",
-                  boxShadow: "0 4px 12px rgba(37, 99, 235, 0.3)",
-                  "& .MuiListItemIcon-root": { color: "#ffffff" },
-                },
+                "&:hover": { bgcolor: "rgba(255, 255, 255, 0.05)", color: "#ffffff" },
+                "&.active": { background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)", color: "#ffffff" },
               }}
             >
-              <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600, fontSize: "0.92rem" }} />
+              <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
+                <EmojiEventsIcon />
+              </ListItemIcon>
+              <ListItemText primary="Browse Tournaments" primaryTypographyProps={{ fontWeight: 600, fontSize: "0.92rem" }} />
             </ListItemButton>
-          ))}
 
-          {role === "player" && (
+            <ListItemButton
+              component={NavLink}
+              to="/my-tournaments"
+              onClick={onNavigate}
+              sx={{
+                borderRadius: 2.5,
+                mb: 0.8,
+                px: 2,
+                py: 1.2,
+                color: "#94a3b8",
+                "&:hover": { bgcolor: "rgba(255, 255, 255, 0.05)", color: "#ffffff" },
+                "&.active": { background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)", color: "#ffffff" },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
+                <AssignmentTurnedInIcon />
+              </ListItemIcon>
+              <ListItemText primary="My Registrations" primaryTypographyProps={{ fontWeight: 600, fontSize: "0.92rem" }} />
+            </ListItemButton>
+
             <ListItemButton
               component={NavLink}
               to="/my-certificates"
@@ -147,17 +165,8 @@ function SidebarContent({ onNavigate }) {
                 px: 2,
                 py: 1.2,
                 color: "#94a3b8",
-                transition: "all 0.2s ease",
-                "&:hover": {
-                  bgcolor: "rgba(255, 255, 255, 0.05)",
-                  color: "#ffffff",
-                },
-                "&.active": {
-                  background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-                  color: "#ffffff",
-                  boxShadow: "0 4px 12px rgba(37, 99, 235, 0.3)",
-                  "& .MuiListItemIcon-root": { color: "#ffffff" },
-                },
+                "&:hover": { bgcolor: "rgba(255, 255, 255, 0.05)", color: "#ffffff" },
+                "&.active": { background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)", color: "#ffffff" },
               }}
             >
               <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
@@ -165,13 +174,76 @@ function SidebarContent({ onNavigate }) {
               </ListItemIcon>
               <ListItemText primary="My Certificates" primaryTypographyProps={{ fontWeight: 600, fontSize: "0.92rem" }} />
             </ListItemButton>
-          )}
+          </>
+        )}
 
-          {role === "admin" && (
-            <>
+        {/* Admin Navigation */}
+        {isAnyAdmin && (
+          <>
+            <ListItemButton
+              component={NavLink}
+              to="/admin/sports"
+              onClick={onNavigate}
+              sx={{
+                borderRadius: 2.5,
+                mb: 0.8,
+                px: 2,
+                py: 1.2,
+                color: "#94a3b8",
+                "&:hover": { bgcolor: "rgba(255, 255, 255, 0.05)", color: "#ffffff" },
+                "&.active": { background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)", color: "#ffffff" },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
+                <SportsSoccerIcon />
+              </ListItemIcon>
+              <ListItemText primary="Manage Sports" primaryTypographyProps={{ fontWeight: 600, fontSize: "0.92rem" }} />
+            </ListItemButton>
+
+            <ListItemButton
+              component={NavLink}
+              to="/admin/tournaments"
+              onClick={onNavigate}
+              sx={{
+                borderRadius: 2.5,
+                mb: 0.8,
+                px: 2,
+                py: 1.2,
+                color: "#94a3b8",
+                "&:hover": { bgcolor: "rgba(255, 255, 255, 0.05)", color: "#ffffff" },
+                "&.active": { background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)", color: "#ffffff" },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
+                <EmojiEventsIcon />
+              </ListItemIcon>
+              <ListItemText primary="Manage Tournaments" primaryTypographyProps={{ fontWeight: 600, fontSize: "0.92rem" }} />
+            </ListItemButton>
+
+            <ListItemButton
+              component={NavLink}
+              to="/admin/certificates"
+              onClick={onNavigate}
+              sx={{
+                borderRadius: 2.5,
+                mb: 0.8,
+                px: 2,
+                py: 1.2,
+                color: "#94a3b8",
+                "&:hover": { bgcolor: "rgba(255, 255, 255, 0.05)", color: "#ffffff" },
+                "&.active": { background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)", color: "#ffffff" },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
+                <WorkspacePremiumIcon />
+              </ListItemIcon>
+              <ListItemText primary="Certificates" primaryTypographyProps={{ fontWeight: 600, fontSize: "0.92rem" }} />
+            </ListItemButton>
+
+            {isSuperAdmin && (
               <ListItemButton
                 component={NavLink}
-                to="/admin/sports"
+                to="/admin/users"
                 onClick={onNavigate}
                 sx={{
                   borderRadius: 2.5,
@@ -179,217 +251,91 @@ function SidebarContent({ onNavigate }) {
                   px: 2,
                   py: 1.2,
                   color: "#94a3b8",
-                  transition: "all 0.2s ease",
-                  "&:hover": {
-                    bgcolor: "rgba(255, 255, 255, 0.05)",
-                    color: "#ffffff",
-                  },
-                  "&.active": {
-                    background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-                    color: "#ffffff",
-                    boxShadow: "0 4px 12px rgba(37, 99, 235, 0.3)",
-                    "& .MuiListItemIcon-root": { color: "#ffffff" },
-                  },
+                  "&:hover": { bgcolor: "rgba(255, 255, 255, 0.05)", color: "#ffffff" },
+                  "&.active": { background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)", color: "#ffffff" },
                 }}
               >
                 <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
-                  <SportsSoccerIcon />
+                  <AdminPanelSettingsIcon />
                 </ListItemIcon>
-                <ListItemText primary="Manage Sports" primaryTypographyProps={{ fontWeight: 600, fontSize: "0.92rem" }} />
+                <ListItemText primary="Admin Management" primaryTypographyProps={{ fontWeight: 600, fontSize: "0.92rem" }} />
               </ListItemButton>
+            )}
+          </>
+        )}
 
-              <ListItemButton
-                component={NavLink}
-                to="/admin/tournaments"
-                onClick={onNavigate}
-                sx={{
-                  borderRadius: 2.5,
-                  mb: 0.8,
-                  px: 2,
-                  py: 1.2,
-                  color: "#94a3b8",
-                  transition: "all 0.2s ease",
-                  "&:hover": {
-                    bgcolor: "rgba(255, 255, 255, 0.05)",
-                    color: "#ffffff",
-                  },
-                  "&.active": {
-                    background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-                    color: "#ffffff",
-                    boxShadow: "0 4px 12px rgba(37, 99, 235, 0.3)",
-                    "& .MuiListItemIcon-root": { color: "#ffffff" },
-                  },
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
-                  <EmojiEventsIcon />
-                </ListItemIcon>
-                <ListItemText primary="Manage Tournaments" primaryTypographyProps={{ fontWeight: 600, fontSize: "0.92rem" }} />
-              </ListItemButton>
+        <ListItemButton
+          component={NavLink}
+          to="/verify-certificate"
+          onClick={onNavigate}
+          sx={{
+            borderRadius: 2.5,
+            mb: 0.8,
+            px: 2,
+            py: 1.2,
+            color: "#94a3b8",
+            "&:hover": { bgcolor: "rgba(255, 255, 255, 0.05)", color: "#ffffff" },
+            "&.active": { background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)", color: "#ffffff" },
+          }}
+        >
+          <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
+            <VerifiedUserIcon />
+          </ListItemIcon>
+          <ListItemText primary="Verify Certificate" primaryTypographyProps={{ fontWeight: 600, fontSize: "0.92rem" }} />
+        </ListItemButton>
 
-              <ListItemButton
-                component={NavLink}
-                to="/admin/certificates"
-                onClick={onNavigate}
-                sx={{
-                  borderRadius: 2.5,
-                  mb: 0.8,
-                  px: 2,
-                  py: 1.2,
-                  color: "#94a3b8",
-                  transition: "all 0.2s ease",
-                  "&:hover": {
-                    bgcolor: "rgba(255, 255, 255, 0.05)",
-                    color: "#ffffff",
-                  },
-                  "&.active": {
-                    background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-                    color: "#ffffff",
-                    boxShadow: "0 4px 12px rgba(37, 99, 235, 0.3)",
-                    "& .MuiListItemIcon-root": { color: "#ffffff" },
-                  },
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
-                  <WorkspacePremiumIcon />
-                </ListItemIcon>
-                <ListItemText primary="Certificates" primaryTypographyProps={{ fontWeight: 600, fontSize: "0.92rem" }} />
-              </ListItemButton>
-            </>
-          )}
-
-          <ListItemButton
-            component={NavLink}
-            to="/verify-certificate"
-            onClick={onNavigate}
-            sx={{
-              borderRadius: 2.5,
-              mb: 0.8,
-              px: 2,
-              py: 1.2,
-              color: "#94a3b8",
-              transition: "all 0.2s ease",
-              "&:hover": {
-                bgcolor: "rgba(255, 255, 255, 0.05)",
-                color: "#ffffff",
-              },
-              "&.active": {
-                background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-                color: "#ffffff",
-                boxShadow: "0 4px 12px rgba(37, 99, 235, 0.3)",
-                "& .MuiListItemIcon-root": { color: "#ffffff" },
-              },
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
-              <VerifiedUserIcon />
-            </ListItemIcon>
-            <ListItemText primary="Verify Certificate" primaryTypographyProps={{ fontWeight: 600, fontSize: "0.92rem" }} />
-          </ListItemButton>
-
-          <ListItemButton
-            component={NavLink}
-            to="/profile"
-            onClick={onNavigate}
-            sx={{
-              borderRadius: 2.5,
-              mb: 0.8,
-              px: 2,
-              py: 1.2,
-              color: "#94a3b8",
-              transition: "all 0.2s ease",
-              "&:hover": {
-                bgcolor: "rgba(255, 255, 255, 0.05)",
-                color: "#ffffff",
-              },
-              "&.active": {
-                background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-                color: "#ffffff",
-                boxShadow: "0 4px 12px rgba(37, 99, 235, 0.3)",
-                "& .MuiListItemIcon-root": { color: "#ffffff" },
-              },
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
-              <PersonIcon />
-            </ListItemIcon>
-            <ListItemText primary="User Profile" primaryTypographyProps={{ fontWeight: 600, fontSize: "0.92rem" }} />
-          </ListItemButton>
-
-        </List>
-      </Box>
-
-      {/* User Footer Profile Card */}
-      <Box sx={{ p: 2, m: 2, bgcolor: "rgba(255, 255, 255, 0.04)", borderRadius: 3, border: "1px solid rgba(255, 255, 255, 0.08)" }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          <Avatar
-            sx={{
-              bgcolor: "secondary.main",
-              color: "#fff",
-              width: 38,
-              height: 38,
-              fontSize: "0.95rem",
-              fontWeight: 700,
-            }}
-          >
-            {String(displayName || userProfile?.email || "User").substring(0, 2).toUpperCase()}
-          </Avatar>
-
-          <Box sx={{ overflow: "hidden" }}>
-            <Typography variant="body2" fontWeight={700} noWrap sx={{ color: "#ffffff" }}>
-              {displayName || "User"}
-            </Typography>
-            <Typography variant="caption" noWrap sx={{ color: "#64748b", display: "block" }}>
-              {userProfile?.email || ""}
-            </Typography>
-          </Box>
-        </Box>
-      </Box>
+        <ListItemButton
+          component={NavLink}
+          to="/profile"
+          onClick={onNavigate}
+          sx={{
+            borderRadius: 2.5,
+            mb: 0.8,
+            px: 2,
+            py: 1.2,
+            color: "#94a3b8",
+            "&:hover": { bgcolor: "rgba(255, 255, 255, 0.05)", color: "#ffffff" },
+            "&.active": { background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)", color: "#ffffff" },
+          }}
+        >
+          <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
+            <PersonIcon />
+          </ListItemIcon>
+          <ListItemText primary="Profile Settings" primaryTypographyProps={{ fontWeight: 600, fontSize: "0.92rem" }} />
+        </ListItemButton>
+      </List>
     </Box>
   );
 }
 
-function Sidebar({ mobileOpen, onMobileClose }) {
-  const drawerProps = {
-    sx: {
-      width: DRAWER_WIDTH,
-      flexShrink: 0,
-      "& .MuiDrawer-paper": {
-        width: DRAWER_WIDTH,
-        boxSizing: "border-box",
-        borderRight: "1px solid #1e293b",
-      },
-    },
-  };
-
+export function Sidebar({ mobileOpen, onClose }) {
   return (
-    <>
+    <Box component="nav" sx={{ width: { md: DRAWER_WIDTH }, flexShrink: { md: 0 } }}>
       <Drawer
         variant="temporary"
         open={mobileOpen}
-        onClose={onMobileClose}
+        onClose={onClose}
         ModalProps={{ keepMounted: true }}
         sx={{
           display: { xs: "block", md: "none" },
-          ...drawerProps.sx,
+          "& .MuiDrawer-paper": { boxSizing: "border-box", width: DRAWER_WIDTH, border: "none" },
         }}
       >
-        <SidebarContent onNavigate={onMobileClose} />
+        <SidebarContent onNavigate={onClose} />
       </Drawer>
 
       <Drawer
         variant="permanent"
-        open
         sx={{
           display: { xs: "none", md: "block" },
-          ...drawerProps.sx,
+          "& .MuiDrawer-paper": { boxSizing: "border-box", width: DRAWER_WIDTH, border: "none" },
         }}
+        open
       >
         <SidebarContent />
       </Drawer>
-    </>
+    </Box>
   );
 }
 
 export default Sidebar;
-

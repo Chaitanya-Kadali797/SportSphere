@@ -1,16 +1,19 @@
 export const ROLES = {
+  SUPER_ADMIN: "superAdmin",
   ADMIN: "admin",
   COACH: "coach",
   PLAYER: "player",
 };
 
 export const ROLE_LABELS = {
+  [ROLES.SUPER_ADMIN]: "Super Admin",
   [ROLES.ADMIN]: "Admin",
   [ROLES.COACH]: "Coach",
   [ROLES.PLAYER]: "Player",
 };
 
 export const ROLE_HOME_PATHS = {
+  [ROLES.SUPER_ADMIN]: "/admin/dashboard",
   [ROLES.ADMIN]: "/admin/dashboard",
   [ROLES.COACH]: "/coach/dashboard",
   [ROLES.PLAYER]: "/player/dashboard",

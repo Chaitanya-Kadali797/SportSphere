@@ -8,6 +8,7 @@ import {
   CardContent,
   Chip,
   IconButton,
+  InputAdornment,
   Paper,
   Table,
   TableBody,
@@ -15,26 +16,31 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
+import DownloadIcon from "@mui/icons-material/Download";
+import PrintIcon from "@mui/icons-material/Print";
+import SearchIcon from "@mui/icons-material/Search";
 import WorkspacePremiumIcon from "@mui/icons-material/WorkspacePremium";
 import DashboardLayout from "../../components/layout/Navbar";
 import PageHeader from "../../components/common/PageHeader";
 import Loader from "../../components/common/Loader";
 import { getCertificates } from "../../services/certificateService";
+import { downloadCertificatePDF } from "../../utils/pdfGenerator";
 
 function formatDate(value) {
   if (!value) return "—";
   const date = value instanceof Date ? value : new Date(value);
-  return date.toLocaleDateString();
+  return isNaN(date.getTime()) ? "—" : date.toLocaleDateString();
 }
 
 function AdminCertificateList() {
   const navigate = useNavigate();
   const [certificates, setCertificates] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -56,6 +62,18 @@ function AdminCertificateList() {
     loadCertificates();
   }, []);
 
+  const filteredCertificates = certificates.filter((cert) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      cert.certificateId?.toLowerCase().includes(q) ||
+      cert.participantName?.toLowerCase().includes(q) ||
+      cert.tournamentName?.toLowerCase().includes(q) ||
+      cert.sportName?.toLowerCase().includes(q) ||
+      cert.achievement?.toLowerCase().includes(q)
+    );
+  });
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -68,7 +86,7 @@ function AdminCertificateList() {
     <DashboardLayout>
       <PageHeader
         title="Certificate Management"
-        subtitle="Issue official digital certificates to tournament winners and participants."
+        subtitle="Generate, manage, print, and download digital certificates for tournament winners and participants."
         action={
           <Button
             component={RouterLink}
@@ -87,21 +105,36 @@ function AdminCertificateList() {
         </Alert>
       )}
 
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3, flexWrap: "wrap", gap: 2 }}>
         <Typography variant="h6" fontWeight={700}>
-          Issued Certificates ({certificates.length})
+          Issued Certificates ({filteredCertificates.length})
         </Typography>
+
+        <TextField
+          size="small"
+          placeholder="Search by ID, Participant, Tournament..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          sx={{ minWidth: 300 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon color="action" fontSize="small" />
+              </InputAdornment>
+            ),
+          }}
+        />
       </Box>
 
       {certificates.length === 0 ? (
-        <Card sx={{ p: 3, textAlign: "center" }}>
+        <Card sx={{ p: 4, textAlign: "center" }}>
           <CardContent>
-            <WorkspacePremiumIcon sx={{ fontSize: 60, color: "text.secondary", mb: 1 }} />
+            <WorkspacePremiumIcon sx={{ fontSize: 64, color: "text.secondary", mb: 1.5 }} />
             <Typography variant="h6" gutterBottom fontWeight={700}>
               No certificates issued yet
             </Typography>
-            <Typography color="text.secondary" sx={{ mb: 2 }}>
-              Generate official certificates for tournament winners and participants.
+            <Typography color="text.secondary" sx={{ mb: 3 }}>
+              Generate official SportSphere digital certificates for tournament winners and participants.
             </Typography>
             <Button
               component={RouterLink}
@@ -113,6 +146,12 @@ function AdminCertificateList() {
             </Button>
           </CardContent>
         </Card>
+      ) : filteredCertificates.length === 0 ? (
+        <Paper sx={{ p: 4, textAlign: "center" }}>
+          <Typography variant="body1" color="text.secondary">
+            No certificates found matching "{searchQuery}".
+          </Typography>
+        </Paper>
       ) : (
         <TableContainer component={Paper} elevation={0} sx={{ border: "1px solid #e2e8f0" }}>
           <Table>
@@ -128,23 +167,36 @@ function AdminCertificateList() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {certificates.map((cert) => (
+              {filteredCertificates.map((cert) => (
                 <TableRow key={cert.id} hover>
-                  <TableCell sx={{ fontFamily: "monospace", fontWeight: 700, color: "primary.main" }}>
+                  <TableCell sx={{ fontFamily: "monospace", fontWeight: 800, color: "primary.main" }}>
                     {cert.certificateId}
                   </TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>{cert.participantName}</TableCell>
                   <TableCell>{cert.tournamentName}</TableCell>
-                  <TableCell>{cert.sportName}</TableCell>
+                  <TableCell>{cert.sportName || cert.sport}</TableCell>
                   <TableCell>
-                    <Chip label={cert.achievement} size="small" color="warning" />
+                    <Chip
+                      label={cert.achievement}
+                      size="small"
+                      color={
+                        cert.achievement?.includes("Winner")
+                          ? "warning"
+                          : cert.achievement?.includes("Runner")
+                          ? "secondary"
+                          : cert.achievement?.includes("3rd")
+                          ? "info"
+                          : "default"
+                      }
+                      sx={{ fontWeight: 700 }}
+                    />
                   </TableCell>
-                  <TableCell>{formatDate(cert.issueDate)}</TableCell>
+                  <TableCell>{formatDate(cert.issueDate || cert.issuedAt)}</TableCell>
                   <TableCell align="right">
                     <IconButton
                       size="small"
                       color="primary"
-                      title="View & Print"
+                      title="View & Preview"
                       onClick={() => navigate(`/certificates/${cert.certificateId}`)}
                     >
                       <VisibilityIcon fontSize="small" />
@@ -152,10 +204,18 @@ function AdminCertificateList() {
                     <IconButton
                       size="small"
                       color="secondary"
-                      title="Verify Online"
-                      onClick={() => navigate(`/verify-certificate?id=${cert.certificateId}`)}
+                      title="Download PDF"
+                      onClick={() => downloadCertificatePDF(cert)}
                     >
-                      <VerifiedUserIcon fontSize="small" />
+                      <DownloadIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      color="info"
+                      title="Print Certificate"
+                      onClick={() => navigate(`/certificates/${cert.certificateId}`)}
+                    >
+                      <PrintIcon fontSize="small" />
                     </IconButton>
                   </TableCell>
                 </TableRow>

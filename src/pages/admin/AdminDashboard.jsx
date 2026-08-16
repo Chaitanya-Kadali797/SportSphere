@@ -27,7 +27,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import DashboardLayout from "../../components/layout/Navbar";
 import PageHeader from "../../components/common/PageHeader";
 import Loader from "../../components/common/Loader";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth, useRole } from "../../hooks/useAuth";
 import { getTournaments } from "../../services/tournamentService";
 import { getSports } from "../../services/sportService";
 
@@ -39,6 +39,7 @@ function formatDate(value) {
 
 function AdminDashboard() {
   const { userProfile } = useAuth();
+  const { isSuperAdmin } = useRole();
   const [tournaments, setTournaments] = useState([]);
   const [sports, setSports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -306,6 +307,27 @@ function AdminDashboard() {
                     >
                       Issue & Manage Certificates
                     </Button>
+
+                    {isSuperAdmin && (
+                      <Button
+                        component={RouterLink}
+                        to="/admin/users"
+                        variant="contained"
+                        fullWidth
+                        sx={{
+                          bgcolor: "rgba(212, 175, 55, 0.2)",
+                          color: "#ffd700",
+                          justifyContent: "flex-start",
+                          py: 1.5,
+                          px: 2,
+                          border: "1px solid rgba(212, 175, 55, 0.4)",
+                          "&:hover": { bgcolor: "rgba(212, 175, 55, 0.3)" },
+                        }}
+                        startIcon={<PeopleIcon />}
+                      >
+                        Admin Management
+                      </Button>
+                    )}
 
                     <Button
                       component={RouterLink}

@@ -21,11 +21,14 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import PublishIcon from "@mui/icons-material/Publish";
 import PeopleIcon from "@mui/icons-material/People";
+import WorkspacePremiumIcon from "@mui/icons-material/WorkspacePremium";
 import DashboardLayout from "../../components/layout/Navbar";
 import PageHeader from "../../components/common/PageHeader";
 import Loader from "../../components/common/Loader";
 import { deleteTournament, getTournament, updateTournament } from "../../services/tournamentService";
 import { getTournamentParticipants } from "../../services/userService";
+
+import { useRole } from "../../hooks/useAuth";
 
 function formatDate(value) {
   if (!value) return "—";
@@ -36,6 +39,7 @@ function formatDate(value) {
 function TournamentView() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isSuperAdmin } = useRole();
   const [tournament, setTournament] = useState(null);
   const [participants, setParticipants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +97,11 @@ function TournamentView() {
   };
 
   const handleDelete = async () => {
+    if (!isSuperAdmin) {
+      setError("Only Super Admin can modify this");
+      return;
+    }
+
     const confirmed = window.confirm(
       "Delete this tournament? This action cannot be undone."
     );
@@ -161,6 +170,14 @@ function TournamentView() {
                 </Box>
 
                 <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+                  <Button
+                    variant="contained"
+                    color="secondary"
+                    startIcon={<WorkspacePremiumIcon />}
+                    onClick={() => navigate(`/admin/certificates/create?tournamentId=${tournament.id}`)}
+                  >
+                    Issue Certificate
+                  </Button>
                   {tournament.status === "Draft" && (
                     <Button
                       variant="contained"

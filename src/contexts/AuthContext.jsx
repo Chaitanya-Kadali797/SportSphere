@@ -5,12 +5,26 @@ import { createOrUpdateUserProfile, getUserProfile } from "../services/userServi
 import { ROLES } from "../utils/constants";
 import Loader from "../components/common/Loader";
 
-function inferRoleFromEmail(email) {
-  if (!email) return ROLES.PLAYER;
-  const lowered = email.toLowerCase();
-  if (lowered.includes("admin")) return ROLES.ADMIN;
-  if (lowered.includes("coach")) return ROLES.COACH;
-  if (lowered.includes("player")) return ROLES.PLAYER;
+function determineUserRole(profile) {
+  if (!profile) return ROLES.PLAYER;
+
+  // Primary Super Admin check: explicit superAdmin role OR root admin doc without createdBy field
+  if (
+    profile.role === ROLES.SUPER_ADMIN ||
+    profile.role === "superAdmin" ||
+    (profile.role === "admin" && !profile.createdBy)
+  ) {
+    return ROLES.SUPER_ADMIN;
+  }
+
+  if (profile.role === ROLES.ADMIN || profile.role === "admin") {
+    return ROLES.ADMIN;
+  }
+
+  if (profile.role === ROLES.COACH || profile.role === "coach") {
+    return ROLES.COACH;
+  }
+
   return ROLES.PLAYER;
 }
 
@@ -30,8 +44,7 @@ export function AuthProvider({ children }) {
       if (isMounted && loading) {
         setLoading(false);
       }
-    }, 2000);
-
+    }, 2500);
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       clearTimeout(timeoutId);
@@ -54,39 +67,54 @@ export function AuthProvider({ children }) {
 
       try {
         let profile = await getUserProfile(currentUser.uid);
-        const inferred = inferRoleFromEmail(currentUser.email);
+        const finalRole = determineUserRole(profile);
 
-        if (!profile || !profile.role) {
-          const newProfile = {
+        // Update profile in Firestore if role needs to be persisted as superAdmin or initialized
+        if (!profile || profile.role !== finalRole) {
+          const updatedProfile = {
+            ...profile,
             email: currentUser.email,
-            displayName: currentUser.displayName || (inferred === ROLES.ADMIN ? "Administrator" : "Player"),
-            role: profile?.role || inferred,
+            displayName: profile?.displayName || currentUser.displayName || (finalRole === ROLES.SUPER_ADMIN ? "Super Admin" : finalRole === ROLES.ADMIN ? "Admin" : "Player"),
+            role: finalRole,
+            active: profile?.active !== undefined ? profile.active : true,
           };
           try {
-            await createOrUpdateUserProfile(currentUser.uid, newProfile);
+            await createOrUpdateUserProfile(currentUser.uid, updatedProfile);
             profile = await getUserProfile(currentUser.uid);
           } catch (pErr) {
             console.error("Failed to persist user profile:", pErr);
           }
         }
 
+        // Check if regular Admin account is deactivated
+        if (profile?.role === ROLES.ADMIN && profile?.active === false) {
+          if (isMounted) {
+            setUserProfile(profile);
+            setRole(ROLES.ADMIN);
+            setIsAuthenticated(false);
+            setProfileError("Your Admin account has been deactivated. Please contact the Super Admin.");
+            setLoading(false);
+          }
+          return;
+        }
+
         if (isMounted) {
-          const finalRole = profile?.role || inferred;
-          setUserProfile(profile || { uid: currentUser.uid, email: currentUser.email, role: finalRole });
-          setRole(finalRole);
+          const effectiveRole = profile?.role || finalRole;
+          setUserProfile(profile || { uid: currentUser.uid, email: currentUser.email, role: effectiveRole, active: true });
+          setRole(effectiveRole);
           setIsAuthenticated(true);
         }
       } catch (error) {
         console.error("Auth profile load failed:", error);
         if (isMounted) {
-          const fallbackRole = inferRoleFromEmail(currentUser.email);
           setUserProfile({
             uid: currentUser.uid,
             email: currentUser.email,
             displayName: currentUser.displayName,
-            role: fallbackRole,
+            role: ROLES.PLAYER,
+            active: true,
           });
-          setRole(fallbackRole);
+          setRole(ROLES.PLAYER);
           setIsAuthenticated(true);
         }
       } finally {
@@ -105,12 +133,19 @@ export function AuthProvider({ children }) {
     return <Loader message="Initializing SportSphere..." />;
   }
 
+  const isSuperAdmin = role === ROLES.SUPER_ADMIN;
+  const isAdmin = role === ROLES.ADMIN;
+  const isAnyAdmin = isSuperAdmin || isAdmin;
+
   return (
     <AuthContext.Provider
       value={{
         user,
         userProfile,
         role,
+        isSuperAdmin,
+        isAdmin,
+        isAnyAdmin,
         isAuthenticated,
         loading,
         profileError,
